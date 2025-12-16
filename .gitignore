@@ -6,8 +6,12 @@ __pycache__/
 
 # Virtual environments
 .venv/
-env/
 venv/
 
-# VS Code
-.vscode/
+# Local caches
+src/.cache/
+*.json
+
+# OS
+.DS_Store
+Thumbs.db

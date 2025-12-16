@@ -152,15 +152,58 @@ def resolve_horse(
 # Pedigree Fetch (STUB — NEXT STEP)
 # -------------------------------
 
-def fetch_pedigree_html(
-    session: requests.Session,
-    horse: HorseIdentity,
-) -> str:
+def fetch_pedigree_html(session: requests.Session, horse: HorseIdentity) -> str:
     """
-    STUB: This will later fetch the printable 5-generation pedigree HTML.
+    Fetch the real printable 5-generation pedigree HTML from Travsport.
+
+    The URL pattern is:
+        https://sportapp.travsport.se/sportinfo/horse/ts{horse_id}/printpedigree
     """
 
-    print("[travsport_api] fetch_pedigree_html() called (stub)")
-    print(f"  horse_id = {horse.horse_id}")
+    # Travsport uses "ts{horseId}" in the URL path
+    path_id = horse.horse_id
+    if not path_id.startswith("ts"):
+        path_id = f"ts{path_id}"
 
-    return "<html><body><h1>FAKE PEDIGREE PAGE</h1></body></html>"
+    url = f"https://sportapp.travsport.se/sportinfo/horse/{path_id}/printpedigree"
+
+    print(f"[travsport_api] Fetching printable pedigree page:")
+    print(f"  GET {url}")
+
+    resp = session.get(url, timeout=10)
+    resp.raise_for_status()
+
+    html = resp.text
+    print(f"[travsport_api] Received printable pedigree HTML (len={len(html)})")
+
+    return html
+
+def fetch_horse_basic_info(session, horse_id: int) -> dict:
+    """
+    Fetch basic horse information from the Travsport API.
+    Returns a dict with keys:
+        - name
+        - birth_year (int or None)
+        - raw (full JSON returned by API)
+    """
+    url = f"https://api.travsport.se/sportinfo/horse/basic-information/{horse_id}"
+
+    resp = session.get(url, timeout=10)
+    resp.raise_for_status()
+
+    data = resp.json().get("data", {})
+
+    # Extract birth year
+    dob = data.get("dateOfBirth") or data.get("dateOfBirthDisplayValue")
+    birth_year = None
+    if dob and len(dob) >= 4:
+        try:
+            birth_year = int(dob[0:4])
+        except ValueError:
+            pass
+
+    return {
+        "name": data.get("name"),
+        "birth_year": birth_year,
+        "raw": data,
+    }
