@@ -1,85 +1,95 @@
 Pedigree Score
 
-A personal Python project for exploring and analyzing horse pedigrees.
+A personal command-line Python project for exploring and analyzing horse pedigrees.
 
-Project Overview
+Overview
 
-Pedigree Score is a command-line Python project that builds and analyzes a local pedigree database for horses.
+Pedigree Score is a CLI-based Python project that builds and analyzes a local pedigree database for horses.
 
-The project fetches pedigree data from an external source, parses it into structured form, caches results locally, and incrementally merges multiple pedigree trees into a single ancestry graph. From this merged graph, the project can generate summaries, visualizations, and simple influence scores for ancestors across many generations.
+It fetches pedigree data from an external source, parses it into structured trees, caches results locally, and incrementally merges multiple pedigree searches into a single ancestry graph. From this merged graph, the project can generate summaries, visualizations, and simple influence scores for ancestors across many generations.
 
-This project was built as a learning exercise, not as a production system. The main goals were to practice:
+This project is not production-ready. It was built as a learning exercise to practice working with non-trivial data structures and real-world data issues.
 
-Working with tree and graph data structures
+What This Project Does
 
-Designing a CLI-driven Python application
+Fetches horse pedigree data from an external source
 
-Handling imperfect real-world data
+Parses pedigrees into tree structures
 
-Incremental development with caching and persistence
+Flattens and caches pedigrees locally
+
+Merges multiple pedigrees into a growing ancestry graph
+
+Analyzes ancestor structure and influence
+
+Visualizes pedigrees directly in the terminal
 
 Features
+Pedigree Fetching & Parsing
 
-Pedigree fetching & parsing
-
-Fetches printable pedigree pages from an external site
+Downloads printable pedigree pages
 
 Parses ancestry into structured tree data
 
-Local pedigree cache
+Local Cache & Merging
 
-Stores flattened pedigrees locally to avoid repeated downloads
+Stores flattened pedigrees locally
 
-Builds a growing, merged pedigree graph across multiple runs
+Builds a growing merged pedigree graph across runs
 
-Merged ancestry analysis
+Ancestry Analysis
 
-Computes generation summaries (unique ancestors vs appearances)
+Generation summaries (unique vs repeated ancestors)
 
-Supports deep ancestry (10–20+ generations)
+Deep ancestry support (10–20+ generations)
 
-Ancestor influence scoring
+Ancestor Influence Scoring
 
-Counts ancestor appearances
+Appearance-based ancestor counts
 
-Multiple weighting schemes (linear, exponential, slow exponential, power-law)
+Multiple weighting models:
 
-ASCII pedigree visualization
+Linear decay
 
-Renders a text-based pedigree tree directly in the terminal
+Exponential decay
 
-CLI-first workflow
+Slow exponential decay
 
-All functionality is accessible via command-line options
+Power-law
 
-Installation & Usage
+ASCII Pedigree Output
+
+Renders pedigree trees directly in the terminal
+
+CLI-First Design
+
+All functionality exposed through command-line flags
+
+Installation
 Clone the repository
-git clone https://github.com/<your-username>/pedigree-score.git
+git clone https://github.com/andersgombrii-ux/pedigree-score.git
 cd pedigree-score
 
 Create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate   # Linux / macOS
+source .venv/bin/activate   # macOS / Linux
 # or
 .venv\Scripts\activate      # Windows
 
 Install dependencies
 pip install -r requirements.txt
 
-Basic usage
-
-Fetch and analyze a pedigree:
-
+Usage Examples
+Fetch and inspect a pedigree
 python -m src.main --name "Vårblomster" --year 2021
 
+Run merged pedigree analysis
+python -m src.main \
+  --name "Vårblomster" \
+  --year 2021 \
+  --merged-summary
 
-Run merged pedigree summaries (across all cached pedigrees):
-
-python -m src.main --name "Vårblomster" --year 2021 --merged-summary
-
-
-Control depth of analysis:
-
+Control analysis depth
 python -m src.main \
   --name "Vårblomster" \
   --year 2021 \
@@ -87,48 +97,46 @@ python -m src.main \
   --appearance-max-depth 20 \
   --summary-max-depth 20
 
-
-Render an ASCII pedigree:
-
+Render an ASCII pedigree
 python -m src.main --name "Vårblomster" --year 2021 --ascii
 
 Project Structure
 src/
-├── main.py                  # CLI entry point and orchestration
+├── main.py                  # CLI entry point
 ├── travsport_api.py         # External data fetching
 ├── pedigree_parser.py       # HTML → pedigree tree parsing
 ├── lineage_utils.py         # Tree flattening utilities
-├── pedigree_store.py        # Local cache for flattened pedigrees
-├── pedigree_graph.py        # Merged pedigree graph construction
-├── pedigree_graph_store.py  # Persistence for merged graph
+├── pedigree_store.py        # Local pedigree cache
+├── pedigree_graph.py        # Merged graph construction
+├── pedigree_graph_store.py  # Graph persistence
 ├── pedigree_summary.py      # Generation summaries
-├── pedigree_scoring.py      # Ancestor influence scoring
-├── pedigree_ascii.py        # ASCII tree rendering
+├── pedigree_scoring.py      # Influence scoring
+├── pedigree_ascii.py        # ASCII rendering
 ├── corrections.py           # Manual data corrections (limited)
 └── age_gap.py               # Age gap diagnostics
 
 
-The project is intentionally modular to make it easier to experiment, refactor, and extend.
+The project is intentionally modular to support experimentation and refactoring.
 
 Learning Goals
 
-This project helped me practice and reinforce:
+This project was used to practice:
 
-CLI design
+CLI application design
 
-Argument parsing, flags, defaults, and user feedback
+Argument parsing, flags, and user feedback
 
 Tree and graph data structures
 
-BFS traversal
+Breadth-first traversal
 
-Deduplicated vs appearance-based ancestry analysis
+Unique vs appearance-based ancestry
 
 Caching and persistence
 
 File-based caching
 
-Incremental graph building across runs
+Incremental graph building
 
 Working with imperfect data
 
@@ -144,7 +152,7 @@ Building features step by step
 
 Refactoring as understanding improved
 
-Known Issues & Future Work
+Known Issues & Limitations
 
 This project intentionally accepts several limitations:
 
@@ -152,38 +160,44 @@ Incorrect or conflicting source data
 
 Upstream pedigree data may be incomplete or inconsistent
 
-Some horses may have missing or conflicting birth years or identifiers
+Some horses have missing or conflicting identifiers or birth years
 
-This is a known limitation and not fully resolved
+This is a known issue and not fully resolved
 
 Incomplete ancestor resolution
 
-Some ancestors may exist as nodes but be disconnected due to missing identifiers
+Some ancestors exist but may be disconnected due to missing IDs
 
 Performance
 
-Current implementation prioritizes clarity over performance
+Focus is on clarity, not optimization
 
-Large merged graphs may become slow
+Very large merged graphs may become slow
 
-Future improvements
+Future Improvements
 
-More robust identity resolution
+Possible future directions include:
 
-Better handling of conflicting data sources
+Improved identity resolution across data sources
 
-Improved diagnostics and validation
+Better conflict handling and validation
 
 Optional SQLite-based persistence
 
+Performance optimizations for large graphs
+
 Why I Built This
 
-I wanted a non-trivial project that forced me to work with:
+I wanted a non-trivial personal project that required:
 
-Real-world messy data
+Working with messy, real-world data
 
-Graph traversal logic
+Implementing and traversing graph structures
 
-A CLI-based workflow instead of a web UI
+Designing a CLI-based workflow rather than a web app
 
-Horse pedigrees turned out to be a surprisingly good domain for practicing these skills.
+Horse pedigrees turned out to be a surprisingly effective problem domain for practicing these skills.
+
+Project Status
+
+This project is complete enough for Boot.dev submission and intentionally left open for future iteration and learning.
