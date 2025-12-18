@@ -6,12 +6,41 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------
-# Storage location (legacy defaults)
+# Storage location (UPDATED DEFAULTS)
+# ---------------------------------------------------------------------
+#
+# Old behavior stored the merged graph under src/.cache/...
+# That made it hard to find and inconsistent with the flattened caches
+# that live under project_root/.cache/pedigrees/...
+#
+# New behavior stores merged graph under project_root/.cache/ by default.
+# We still fall back gracefully if DEFAULT_CACHE_DIR can't be imported.
 # ---------------------------------------------------------------------
 
-GRAPH_CACHE_DIR = Path(__file__).resolve().parent / ".cache"
-GRAPH_CACHE_DIR.mkdir(exist_ok=True)
 
+def _default_graph_cache_dir() -> Path:
+    """
+    Choose a sane default for the merged-graph cache dir.
+
+    Preferred:
+      - project_root/.cache  (i.e. DEFAULT_CACHE_DIR.parent when DEFAULT_CACHE_DIR = .cache/pedigrees)
+
+    Fallback:
+      - src/.cache (legacy)
+    """
+    try:
+        from .pedigree_store import DEFAULT_CACHE_DIR  # type: ignore
+        # DEFAULT_CACHE_DIR is typically <project_root>/.cache/pedigrees
+        base = Path(DEFAULT_CACHE_DIR).resolve().parent
+        base.mkdir(parents=True, exist_ok=True)
+        return base
+    except Exception:
+        legacy = Path(__file__).resolve().parent / ".cache"
+        legacy.mkdir(parents=True, exist_ok=True)
+        return legacy
+
+
+GRAPH_CACHE_DIR = _default_graph_cache_dir()
 MERGED_GRAPH_PATH = GRAPH_CACHE_DIR / "merged_pedigree_graph.json"
 
 # ---------------------------------------------------------------------
@@ -22,8 +51,6 @@ MERGED_GRAPH_PATH = GRAPH_CACHE_DIR / "merged_pedigree_graph.json"
 def _try_get_flattened_cache_dir() -> Path | None:
     """
     Best-effort import of the flattened pedigree cache directory.
-
-    We keep this import local/optional to avoid hard coupling or circular imports.
     """
     try:
         from .pedigree_store import DEFAULT_CACHE_DIR  # type: ignore
@@ -97,7 +124,6 @@ def save_merged_pedigree_graph(
         "graph": serializable_graph,
     }
 
-    # Only include if we could compute it (keeps older files/loaders sane)
     if source_max_mtime is not None:
         payload["source_max_mtime"] = source_max_mtime
         payload["source_cache_dir"] = str(source_cache_dir) if source_cache_dir else None
@@ -105,7 +131,6 @@ def save_merged_pedigree_graph(
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
-    # Atomic replace
     tmp_path.replace(target_path)
 
 
@@ -139,14 +164,12 @@ def load_merged_pedigree_graph(
     if schema_version != 1:
         raise ValueError(f"Unsupported merged graph schema_version: {schema_version}")
 
-    # ---- staleness detection (best effort) ----
     stored_source_max_mtime = payload.get("source_max_mtime")
     if isinstance(stored_source_max_mtime, (int, float)):
         source_cache_dir = _try_get_flattened_cache_dir()
         if source_cache_dir is not None:
             current_source_max_mtime = _compute_source_max_mtime(source_cache_dir)
             if isinstance(current_source_max_mtime, (int, float)):
-                # If any source file is newer than what this merged graph was built from, it's stale.
                 if current_source_max_mtime > float(stored_source_max_mtime):
                     raise ValueError(
                         "Merged graph is stale (flattened pedigree cache has newer files)."
@@ -163,7 +186,9 @@ def load_merged_pedigree_graph(
         except Exception as e:
             raise ValueError(f"Malformed merged graph key (expected int-like): {k!r}") from e
         if not isinstance(v, dict):
-            raise ValueError(f"Malformed merged graph node for id {k!r}: expected object, got {type(v)}")
+            raise ValueError(
+                f"Malformed merged graph node for id {k!r}: expected object, got {type(v)}"
+            )
         graph[kid] = v
 
     return graph
@@ -179,7 +204,10 @@ def save_merged_graph(graph: dict[int, dict[str, Any]]) -> None:
     Persist the merged pedigree graph to disk.
 
     Legacy wrapper around save_merged_pedigree_graph().
+
+    NOTE: Now saves under project_root/.cache by default.
     """
+    print(f"[graph-store] Saving merged graph to: {MERGED_GRAPH_PATH}")
     save_merged_pedigree_graph(graph=graph, cache_dir=GRAPH_CACHE_DIR, path=MERGED_GRAPH_PATH)
 
 
@@ -190,7 +218,10 @@ def load_merged_graph() -> dict[int, dict[str, Any]] | None:
     Legacy behavior:
       - returns None if missing
       - returns None (and prints warning) if load fails or is stale
+
+    NOTE: Now loads from project_root/.cache by default.
     """
+    print(f"[graph-store] Loading merged graph from: {MERGED_GRAPH_PATH}")
     if not MERGED_GRAPH_PATH.exists():
         return None
 
@@ -199,11 +230,3 @@ def load_merged_graph() -> dict[int, dict[str, Any]] | None:
     except Exception as e:
         print("[graph-store] WARNING: failed to load merged graph:", e)
         return None
-
-
-def delete_merged_graph() -> None:
-    """
-    Delete persisted merged graph.
-    """
-    if MERGED_GRAPH_PATH.exists():
-        MERGED_GRAPH_PATH.unlink()

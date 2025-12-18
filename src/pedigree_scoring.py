@@ -15,11 +15,37 @@ def ancestor_influence_scores(
     focus_ids: set[int] | None = None,
 ) -> dict[int, dict[str, float]]:
     """
-    Returns per horse_id (appearance-based, no deduplication):
+    Compute per-ancestor influence scores from a merged pedigree graph.
 
+    IMPORTANT: What does "count" mean?
+
+      "count" is an APPEARANCE COUNT (preserves repeats), computed on the
+      expanded pedigree tree implied by the merged graph up to max_depth.
+
+      Concretely:
+        - We expand generation by generation from root.
+        - Each time an ancestor ID appears in the expanded generation list,
+          we increment its count by 1.
+        - If the same ancestor appears multiple times via different paths
+          (inbreeding / duplicate occurrences), it is counted multiple times.
+
+      This is NOT a unique-reachable-node count.
+
+    Notes on non-additivity / intuition traps:
+      - Counts are not additive across relatives (e.g., parent + grandsire)
+        because the parent's count already includes the grandsire's line.
+      - If you compare child vs parent using the SAME max_depth, the child's
+        expanded ancestry includes each parent's ancestry only up to depth
+        (max_depth - 1) beyond the parent (because the parent itself is at gen=1).
+        So "child(max_depth)" aligns to "parent(max_depth-1)" for the parent's
+        contribution.
+      - Overlap (the same ancestor appearing via multiple paths) also breaks
+        naive additivity; this is expected for appearance counts.
+
+    Returned structure (per ancestor horse_id):
       {
         horse_id: {
-          "count": int,
+          "count": float(int),       # appearance count (integer stored as float for compatibility)
           "score_exp": float,        # sum(1 / 2^gen)  [genetic share]
           "score_exp_slow": float,   # sum(alpha^gen)  [deep influence]
           "score_lin": float,        # linear depth decay
@@ -29,6 +55,10 @@ def ancestor_influence_scores(
 
     If focus_ids is provided, only those horse_ids are included in the output.
     Traversal is unchanged; filtering happens at output time.
+
+    Parent pointer keys:
+      - preferred: "father_id" / "mother_id"
+      - fallback:  "father" / "mother"
     """
     if root_id not in merged_graph:
         return {}
@@ -40,6 +70,20 @@ def ancestor_influence_scores(
             return 0.0
         return (max_depth - gen + 1) / max_depth
 
+    def _get_parent_id(node: dict[str, Any], key: str) -> int | None:
+        v = node.get(key)
+        if isinstance(v, int):
+            return v
+
+        if key == "father_id":
+            v2 = node.get("father")
+            return v2 if isinstance(v2, int) else None
+        if key == "mother_id":
+            v2 = node.get("mother")
+            return v2 if isinstance(v2, int) else None
+
+        return None
+
     scores = defaultdict(
         lambda: {
             "count": 0.0,
@@ -50,6 +94,8 @@ def ancestor_influence_scores(
         }
     )
 
+    # "current" is a LIST, not a set: duplicates are preserved and will be expanded
+    # and counted in descendants, implementing true appearance counting.
     current = [root_id]
 
     if include_root:
@@ -64,8 +110,9 @@ def ancestor_influence_scores(
 
         for hid in current:
             node = merged_graph.get(hid) or {}
-            f = node.get("father_id")
-            m = node.get("mother_id")
+
+            f = _get_parent_id(node, "father_id")
+            m = _get_parent_id(node, "mother_id")
 
             if isinstance(f, int) and f in merged_graph:
                 nxt.append(f)
@@ -77,7 +124,7 @@ def ancestor_influence_scores(
 
         w_exp = 1.0 / (2 ** gen)
         w_exp_slow = exp_alpha ** gen
-        w_lin_val = w_lin(gen)              # ✅ FIXED
+        w_lin_val = w_lin(gen)
         w_pow = 1.0 / ((gen + 1) ** power_p)
 
         for aid in nxt:
@@ -90,8 +137,14 @@ def ancestor_influence_scores(
 
         current = nxt
 
-    # Normalize + optional filtering
     out: dict[int, dict[str, float]] = {}
+
+    # If focus_ids is provided, ensure every focus id appears in output
+    # even if its scores are all zeros.
+    if focus_ids is not None:
+        for fid in focus_ids:
+            _ = scores[fid]
+
     for hid, d in scores.items():
         if focus_ids is not None and hid not in focus_ids:
             continue

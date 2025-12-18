@@ -29,7 +29,7 @@ def render_pedigree_ascii(
       X = male (or father-role fallback)
       O = female (or mother-role fallback)
       ? = unknown HORSE (missing parent placeholder; should only appear at the edge)
-      * = deeper cached ancestry exists beyond displayed depth (has_more)
+      + = deeper cached ancestry exists beyond displayed depth (has_more)
 
     Note: We do NOT use '?' for "unknown sex". If sex is missing, we fall back to role.
     """
@@ -177,7 +177,7 @@ def render_pedigree_ascii(
         put(x, y, symbol_for(hid, depth))
         # Only mark real (identified) nodes, not unknown placeholders
         if hid not in unknown_ids and hid in has_more and x + 1 < len(canvas[0]):
-            put(x + 1, y, "*")
+            put(x + 1, y, "+")  # <-- FIX: use '+' as has_more marker
 
     def draw_h(x1: int, x2: int, y: int) -> None:
         for x in range(min(x1, x2), max(x1, x2) + 1):
@@ -207,10 +207,6 @@ def render_pedigree_ascii(
         f = n.father_id if n.father_id is not None else None
         # But we created placeholders during layout, so use those if needed:
         if f is None:
-            # find the placeholder that was created at (depth+1) with role father
-            # easiest: pick any node at depth+1 with role father that connects visually
-            # However, since layout() always created placeholders, we can reconstruct:
-            # create a new placeholder only if it doesn't exist (rare)
             f = new_unknown()
 
         # Mother
